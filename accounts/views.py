@@ -1,19 +1,19 @@
 from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny,IsAuthenticated
-from .serializers import UserSerializer
+from .serializers import UserSerializer,ForgotPasswordSerializer
 from rest_framework.response import Response
 from rest_framework import status
 from .models import UserModel
 from django.db.models import Q
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.utils.http import urlsafe_base64_encode
+from django.utils.http import urlsafe_base64_encode,urlsafe_base64_decode
 from django.utils.encoding import force_bytes
 from django.contrib.auth.tokens import default_token_generator
 from django.conf import settings
 from django.core.mail import send_mail
-import smtplib
-from django.http import HttpResponse
+from rest_framework.decorators import permission_classes,api_view
+
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
@@ -33,6 +33,7 @@ class LoginView(APIView):
     def post(self, request):
         username = request.data['username']
         password = request.data['password']
+        
         user = UserModel.objects.filter(Q(username=username) | Q(email=username)).first()
 
         if user is None:
@@ -46,15 +47,14 @@ class LoginView(APIView):
                          
                          }, status=status.HTTP_200_OK)
     
+        
 
-    
 class ForgotPasswordView(APIView):
     permission_classes = [AllowAny]
 
     def post(self,request):
         email = request.data['email']
-        print(email)
-        print(request.data)
+        user = UserModel.objects.get(email=email)
 
         if email is None:
             return Response({'message':'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -64,38 +64,57 @@ class ForgotPasswordView(APIView):
         except UserModel.DoesNotExist:
             return Response({'message':'User not found'}, status=status.HTTP_404_NOT_FOUND)
         
+
         token = default_token_generator.make_token(user)
         uid = urlsafe_base64_encode(force_bytes(user.userID))
-        reset_link = f'{settings.FRONTEND_URL}/reset-password/{uid}/{token}'
+        reset_link = f'{settings.FRONTEND_URL}/auth/change-password/{uid}/{token}'
 
-        send_mail(
-            'Password Reset Request',
-            f'Click the following link to reset your password: {reset_link}',
-            'yash.test.noreply@gmail.com',
-            [email],
-            fail_silently=False,
-        )
+        serializer = ForgotPasswordSerializer(data={'email':email, 'token':token})
 
-        return Response({'message':'Password reset link sent to your email'}, status=status.HTTP_200_OK)
-
-
-def test(request):
-    sender_email = 'yash.test.noreply@gmail.com'
-    try:
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()  # Enable TLS
-            # server.login(sender_email, sender_password)
-            # text = message.as_string()
-            # server.sendmail(sender_email, recipient_email, text)
-            return HttpResponse('Email sent successfully')
-    except Exception as e:
-        return HttpResponse(str(e))
+        if serializer.is_valid():
+            try:
+                serializer.save()
+                send_mail(
+                    'Password Reset Request',
+                    f'Click the following link to reset your password: {reset_link}',
+                    settings.DEFAULT_FROM_EMAIL,
+                    [email],
+                    fail_silently=False,
+                )
+                return Response({'message':'Password reset link sent to your email'}, status=status.HTTP_200_OK)
+            except Exception as e:
+                return Response({'message':str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 
+class ChangePasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self,request):
+        old_password = request.data['old_password']
+        new_password = request.data['new_password']
+        confirm_password = request.data['confirm_password']
+        uid_bytes = urlsafe_base64_decode(request.data['uid'])             #return in bytes
+        userID = uid_bytes.decode('utf-8')                                 #convert bytes to string
+
+        user = UserModel.objects.get(userID=userID)
+
+
+        if old_password is None or new_password is None or confirm_password is None:
+            return Response({'message':'All fields are required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if user.check_password(old_password) == False:
+            return Response({'message':'Old Password in Incorrect'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if user.check_password(old_password) and new_password == confirm_password:
+            user.set_password(new_password)
+            user.save()
+            return Response({'message':'Password changed successfully'}, status=status.HTTP_200_OK)
+        return Response({'message':'Passwords do not match'}, status=status.HTTP_400_BAD_REQUEST)
         
 
-
+  
 
 
 
@@ -103,8 +122,32 @@ def test(request):
 def register(request):
     return render(request, 'accounts/signup.html')
 
-def home(request):
+def login(request):
     return render(request, 'accounts/login.html')
 
 def ForgotPassword(request):
-    return render(request, 'accounts/forgot.html')
+    return render(request, 'accounts/forgot_password.html')
+
+def change_password(request,uid,token):
+    return render(request, 'accounts/change_password.html', {'uid':uid, 'token':token})
+
+def dashboard(request):
+    return render(request, 'accounts/dashboard.html')
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_dashboard(request):
+    user = request.user
+    user_data = {
+        "username": user.username,
+        "email": user.email,
+        "date_joined": user.date_joined
+    }
+    return Response(user_data)
+
+
+@api_view(['POST'])  
+@permission_classes([IsAuthenticated])  
+def logout_func(request):
+    return Response({'message':'Logged out successfully'}, status=status.HTTP_200_OK)

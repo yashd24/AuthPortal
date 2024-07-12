@@ -57,7 +57,7 @@ class UserModel(AbstractBaseUser):
     
 
 class ForgotPasswordMapping(models.Model):
-    userID = models.ForeignKey(UserModel, on_delete=models.CASCADE)
+    email = models.EmailField(max_length=100,default='')
     token = models.CharField(max_length=200)
-    is_active = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
     date_created = models.DateTimeField(auto_now_add=True)

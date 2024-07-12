@@ -1,0 +1,139 @@
+{% extends "accounts/base.html" %} {% load static %} {% block form %}
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-light bg-light">
+  <a class="navbar-brand" href="#">Your App Name</a>
+  <button
+    class="navbar-toggler"
+    type="button"
+    data-toggle="collapse"
+    data-target="#navbarNav"
+    aria-controls="navbarNav"
+    aria-expanded="false"
+    aria-label="Toggle navigation"
+  >
+    <span class="navbar-toggler-icon"></span>
+  </button>
+  <div class="collapse navbar-collapse" id="navbarNav">
+    <ul class="navbar-nav">
+      <li class="nav-item active">
+        <a class="nav-link" href="#"
+          >Home <span class="sr-only">(current)</span></a
+        >
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="#">Dashboard</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="{% url 'logout' %}">Logout</a>
+      </li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Dashboard Content -->
+<div class="limiter">
+  <div
+    class="container-login100"
+    style="background-image: url('{% static 'images/bg-02.jpg' %}')"
+  >
+    <div class="wrap-login100 p-l-55 p-r-55 p-t-65 p-b-54">
+      <span class="login100-form-title p-b-49">Dashboard</span>
+
+      <div class="dashboard-content">
+        <!-- Your dashboard components and functionality -->
+        <!>Welcome to your dashboard <span id="username"></span>!</p>
+        <p>Profile Details:
+        <ul>
+          <li>Username: <span id="username1"></span></li>
+          <li>Email: <span id="email"></span></li>
+          <li>Date Joined: <span id="date_joined"></span></li>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="dropDownSelect1"></div>
+
+<!-- Include necessary scripts -->
+<script src="{% static 'vendor/jquery/jquery-3.2.1.min.js' %}"></script>
+<script src="{% static 'vendor/animsition/js/animsition.min.js' %}"></script>
+<script src="{% static 'vendor/bootstrap/js/popper.js' %}"></script>
+<script src="{% static 'vendor/bootstrap/js/bootstrap.min.js' %}"></script>
+<script src="{% static 'js/main.js' %}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', async function() {
+        const accessToken = localStorage.getItem('access_token');
+        console.log("accessToken")
+        console.log(accessToken)
+    
+        try {
+            const response = await fetch('{% url "api-dashboard" %}', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            console.log(accessToken)
+            const data = await response.json();
+            console.log(data);
+    
+            if (response.status === 200) {
+                console.log('Dashboard data:', data);
+    
+                // Display user details
+                document.getElementById('username').textContent = data.username;
+                document.getElementById('username1').textContent = data.username;
+                document.getElementById('email').textContent = data.email;
+                document.getElementById('date_joined').textContent = new Date(data.date_joined).toLocaleDateString();
+            } else {
+                throw new Error('Unauthorized');
+            }
+        } catch (err) {
+            console.error(err);
+            console.log(err.message)
+            //window.location.href = '{% url "login" %}';  // Redirect to login if unauthorized
+        }
+
+
+
+    const logoutButton = document.getElementById('logoutButton');
+    if (logoutButton) {
+        logoutButton.addEventListener('click', async function(e) {
+            e.preventDefault();
+            const accessToken = localStorage.getItem('access_token');
+            if (!accessToken) {
+                console.error('No access token found in localStorage');
+                return;
+            }
+            
+            
+
+            try {
+                
+                const logoutResponse = await fetch('{% url "logout" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (logoutResponse.status === 200) {
+                    localStorage.removeItem('access_token');
+                    localStorage.removeItem('refresh_token');
+                    window.location.href = '{% url "login" %}';  // Redirect to login after logout
+                } else {
+                    console.error('Failed to logout:', logoutResponse.statusText);
+                }
+            } catch (err) {
+                console.error('Error during logout:', err);
+            }
+        });
+    }
+
+    });
+    
+</script>
+{% endblock form %}

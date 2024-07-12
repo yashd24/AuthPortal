@@ -1,5 +1,8 @@
 from rest_framework import serializers
-from .models import UserModel
+from .models import UserModel,ForgotPasswordMapping
+from datetime import datetime,timedelta
+from django.utils import timezone
+from rest_framework.exceptions import ValidationError
 
 class UserSerializer(serializers.ModelSerializer):
     password2 = serializers.CharField(write_only=True)
@@ -18,5 +21,13 @@ class UserSerializer(serializers.ModelSerializer):
         user = UserModel.objects.create_user(**validated_data)
         return user
     
+
+
+class ForgotPasswordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ForgotPasswordMapping
+        fields = ('email', 'token', 'date_created', 'is_active')
+        extra_kwargs = {'token': {'read_only': True}, 'date_created': {'read_only': True}, 'is_active': {'read_only': True}}
+
 
     
